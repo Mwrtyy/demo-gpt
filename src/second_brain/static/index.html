@@ -16,7 +16,7 @@
       </div>
 
       <section class="panel status-panel">
-        <div class="panel-heading"><h2>État</h2><button class="icon-button" id="refresh-status">↻</button></div>
+        <div class="panel-heading"><h2>État</h2><button class="icon-button" id="refresh-status" aria-label="Actualiser l'état">↻</button></div>
         <dl class="status-grid">
           <div><dt>Modèle</dt><dd id="model-value">—</dd></div>
           <div><dt>Version</dt><dd id="version-value">—</dd></div>
@@ -73,12 +73,12 @@
   </div>
 
   <dialog id="history-dialog">
-    <div class="dialog-header"><div><p class="eyebrow">Mémoire récente</p><h2>Historique</h2></div><button class="icon-button" data-close="history-dialog">×</button></div>
+    <div class="dialog-header"><div><p class="eyebrow">Mémoire récente</p><h2>Historique</h2></div><button class="icon-button" data-close="history-dialog" aria-label="Fermer l'historique">×</button></div>
     <div id="history-list" class="history-list"></div>
   </dialog>
 
   <dialog id="improve-dialog">
-    <div class="dialog-header"><div><p class="eyebrow">Boucle d’évolution</p><h2>Améliorer le comportement</h2></div><button class="icon-button" data-close="improve-dialog">×</button></div>
+    <div class="dialog-header"><div><p class="eyebrow">Boucle d’évolution</p><h2>Améliorer le comportement</h2></div><button class="icon-button" data-close="improve-dialog" aria-label="Fermer la fenêtre d'amélioration">×</button></div>
     <p>Le système testera la version active, générera une candidate et la comparera au même benchmark.</p>
     <label class="checkbox-row"><input id="auto-promote" type="checkbox">Promouvoir automatiquement uniquement si toutes les barrières passent</label>
     <button id="confirm-improve" class="accent-button full-width">Démarrer le cycle</button>
