@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Second Brain — une IA avec mémoire, feedback et amélioration mesurée.">
+  <title>Second Brain</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">SB</div>
+        <div><strong>Second Brain</strong><span>controlled self-improvement</span></div>
+      </div>
+
+      <section class="panel status-panel">
+        <div class="panel-heading"><h2>État</h2><button class="icon-button" id="refresh-status">↻</button></div>
+        <dl class="status-grid">
+          <div><dt>Modèle</dt><dd id="model-value">—</dd></div>
+          <div><dt>Version</dt><dd id="version-value">—</dd></div>
+          <div><dt>Souvenirs</dt><dd id="memory-value">—</dd></div>
+          <div><dt>Feedback</dt><dd id="feedback-value">—</dd></div>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>Ajouter un souvenir</h2>
+        <textarea id="fact-input" rows="4" placeholder="Ex. Je développe surtout sur Roblox et je préfère les réponses directes."></textarea>
+        <div class="inline-fields">
+          <label>Importance<input id="fact-importance" type="number" min="0.1" max="10" step="0.1" value="1"></label>
+          <button id="save-fact" class="secondary-button">Mémoriser</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Accès</h2>
+        <label>Jeton utilisateur<input id="access-token" type="password" autocomplete="off" placeholder="Optionnel"></label>
+        <label>Jeton administrateur<input id="admin-token" type="password" autocomplete="off" placeholder="Pour améliorer"></label>
+        <button id="save-tokens" class="secondary-button full-width">Enregistrer localement</button>
+        <p class="microcopy">Les jetons restent dans ce navigateur et ne sont jamais ajoutés à GitHub.</p>
+      </section>
+
+      <a class="github-link" href="https://github.com/Mwrtyy/demo-gpt" target="_blank" rel="noreferrer">Voir le code sur GitHub ↗</a>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">Agent personnel expérimental</p><h1>Une IA qui se souvient et mesure ses progrès.</h1></div>
+        <div class="topbar-actions">
+          <button id="history-button" class="ghost-button">Historique</button>
+          <button id="improve-button" class="accent-button">Lancer une amélioration</button>
+        </div>
+      </header>
+
+      <section class="chat-card">
+        <div id="messages" class="messages" aria-live="polite">
+          <article class="message assistant"><div class="avatar">SB</div><div class="bubble"><p>Je suis prêt. Chaque réponse peut être mémorisée, notée et comparée aux versions suivantes.</p></div></article>
+        </div>
+        <form id="chat-form" class="composer">
+          <textarea id="message-input" rows="1" maxlength="20000" placeholder="Parle à ton Second Brain…" required></textarea>
+          <button type="submit" id="send-button">Envoyer</button>
+        </form>
+      </section>
+
+      <section class="explain-grid">
+        <article><span>01</span><h3>Mémoire inspectable</h3><p>Les faits et conversations sont enregistrés dans SQLite, pas cachés dans une boîte noire.</p></article>
+        <article><span>02</span><h3>Feedback humain</h3><p>Chaque réponse peut recevoir une note qui influence la récupération future.</p></article>
+        <article><span>03</span><h3>Amélioration contrôlée</h3><p>Une version candidate doit battre le benchmark sans régresser sur les cas critiques.</p></article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="history-dialog">
+    <div class="dialog-header"><div><p class="eyebrow">Mémoire récente</p><h2>Historique</h2></div><button class="icon-button" data-close="history-dialog">×</button></div>
+    <div id="history-list" class="history-list"></div>
+  </dialog>
+
+  <dialog id="improve-dialog">
+    <div class="dialog-header"><div><p class="eyebrow">Boucle d’évolution</p><h2>Améliorer le comportement</h2></div><button class="icon-button" data-close="improve-dialog">×</button></div>
+    <p>Le système testera la version active, générera une candidate et la comparera au même benchmark.</p>
+    <label class="checkbox-row"><input id="auto-promote" type="checkbox">Promouvoir automatiquement uniquement si toutes les barrières passent</label>
+    <button id="confirm-improve" class="accent-button full-width">Démarrer le cycle</button>
+    <pre id="improve-result" class="result-box" hidden></pre>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
