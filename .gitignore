@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.env
+state/
+second_brain.db
+dist/
+build/
+*.egg-info/
