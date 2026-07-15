@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: second-brain
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6
+      - key: SECOND_BRAIN_ACCESS_TOKEN
+        generateValue: true
+      - key: SECOND_BRAIN_ADMIN_TOKEN
+        generateValue: true
+      - key: SECOND_BRAIN_DB
+        value: /var/data/second_brain.db
+      - key: SECOND_BRAIN_STATE_DIR
+        value: /var/data/state
+    disk:
+      name: second-brain-data
+      mountPath: /var/data
+      sizeGB: 1
