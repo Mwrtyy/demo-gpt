@@ -104,6 +104,57 @@ class MemoryStore:
             if cursor.rowcount != 1:
                 raise KeyError(f"Unknown interaction id: {interaction_id}")
 
+    def recent_interactions(self, limit: int = 30) -> list[dict[str, object]]:
+        limit = max(1, min(int(limit), 100))
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, created_at, user_input, answer, prompt_version,
+                       feedback_score, feedback_note
+                FROM interactions
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "id": int(row["id"]),
+                "created_at": str(row["created_at"]),
+                "user_input": str(row["user_input"]),
+                "answer": str(row["answer"]),
+                "prompt_version": int(row["prompt_version"]),
+                "feedback_score": (
+                    float(row["feedback_score"]) if row["feedback_score"] is not None else None
+                ),
+                "feedback_note": str(row["feedback_note"] or ""),
+            }
+            for row in rows
+        ]
+
+    def stats(self) -> dict[str, object]:
+        with self._connect() as connection:
+            interactions = connection.execute(
+                "SELECT COUNT(*) AS count FROM interactions"
+            ).fetchone()
+            facts = connection.execute("SELECT COUNT(*) AS count FROM facts").fetchone()
+            feedback = connection.execute(
+                """
+                SELECT COUNT(feedback_score) AS rated, AVG(feedback_score) AS average
+                FROM interactions
+                """
+            ).fetchone()
+        return {
+            "interactions": int(interactions["count"]),
+            "facts": int(facts["count"]),
+            "rated_interactions": int(feedback["rated"]),
+            "average_feedback": (
+                round(float(feedback["average"]), 4)
+                if feedback["average"] is not None
+                else None
+            ),
+        }
+
     def retrieve(self, query: str, limit: int = 6) -> list[MemoryItem]:
         query_tokens = _tokens(query)
         if not query_tokens:
@@ -125,20 +176,37 @@ class MemoryStore:
             overlap = len(query_tokens & _tokens(content))
             if overlap:
                 score = overlap / max(len(query_tokens), 1) * float(row["importance"])
-                candidates.append(MemoryItem("fact", content, score, {
-                    "id": row["id"], "source": row["source"], "created_at": row["created_at"]
-                }))
-
+                candidates.append(
+                    MemoryItem(
+                        "fact",
+                        content,
+                        score,
+                        {
+                            "id": row["id"],
+                            "source": row["source"],
+                            "created_at": row["created_at"],
+                        },
+                    )
+                )
         for row in interactions:
             combined = f"Question: {row['user_input']}\nRéponse: {row['answer']}"
             overlap = len(query_tokens & _tokens(combined))
             if overlap:
                 feedback = row["feedback_score"]
                 multiplier = 0.5 + float(feedback) if feedback is not None else 1.0
-                candidates.append(MemoryItem("interaction", combined,
-                    overlap / max(len(query_tokens), 1) * multiplier,
-                    {"id": row["id"], "feedback_score": feedback,
-                     "feedback_note": row["feedback_note"], "created_at": row["created_at"]}))
+                candidates.append(
+                    MemoryItem(
+                        "interaction",
+                        combined,
+                        overlap / max(len(query_tokens), 1) * multiplier,
+                        {
+                            "id": row["id"],
+                            "feedback_score": feedback,
+                            "feedback_note": row["feedback_note"],
+                            "created_at": row["created_at"],
+                        },
+                    )
+                )
 
         return sorted(candidates, key=lambda item: item.score, reverse=True)[:limit]
 
