@@ -5,7 +5,10 @@ __pycache__/
 .venv/
 .env
 state/
+runtime/
 second_brain.db
+*.sqlite
+*.sqlite3
 dist/
 build/
 *.egg-info/
