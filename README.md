@@ -1,120 +1,115 @@
 # Second Brain
 
-Second Brain est une application web et un agent IA **auto-améliorant mais contrôlé**. Il ne prétend pas réentraîner magiquement son modèle de base. Il améliore ce qui est réellement modifiable par une application :
+Ce dépôt contient désormais deux moteurs séparés :
 
-- sa mémoire personnelle ;
-- ses instructions actives ;
-- sa stratégie de réponse ;
-- son benchmark ;
-- plus tard, son code, uniquement dans une branche Git et après tests.
+1. **Second Brain Web** — l'application existante avec mémoire, feedback et modèle distant.
+2. **Second Brain Zero** — notre modèle anglais entraîné depuis des poids aléatoires, sans API d'une autre IA.
 
-## Application web
+## Second Brain Zero — modèle réellement scratch
 
-L'interface web fournit :
+Le code se trouve dans [`scratch/`](scratch/README.md).
 
-- un chat connecté au modèle OpenAI ;
-- une mémoire SQLite persistante et inspectable ;
-- l'historique des interactions ;
-- l'ajout manuel de souvenirs importants ;
-- une notation utile / moyenne / à corriger pour chaque réponse ;
-- un panneau administrateur pour lancer un cycle d'amélioration ;
-- deux jetons optionnels pour séparer l'accès normal de l'administration.
+La configuration Level 1 construit un Transformer decoder-only de **19 143 168 paramètres** :
 
-Après installation :
+- tokenizer UTF-8 byte-level de 256 tokens, écrit dans le dépôt ;
+- contexte de 256 bytes ;
+- 6 blocs Transformer ;
+- 8 têtes d'attention ;
+- largeur interne de 512 ;
+- poids initialisés aléatoirement ;
+- entraînement next-byte prediction sur un corpus anglais ;
+- aucun appel à OpenAI, Anthropic, Google ou une API d'inférence externe.
+
+Installation indépendante de l'application historique :
 
 ```bash
+python -m venv .venv
+# PowerShell : .venv\Scripts\Activate.ps1
+python -m pip install -r scratch/requirements.txt
+```
+
+Télécharger un premier corpus anglais du domaine public et le préparer :
+
+```bash
+python -m scratch.download_gutenberg
+python -m scratch.prepare_corpus
+```
+
+Vérifier toute la chaîne sur CPU avec le mini-modèle :
+
+```bash
+python -m scratch.train \
+  --config scratch/configs/smoke_cpu.json \
+  --out-dir scratch/checkpoints/smoke
+```
+
+Lancer le modèle Level 1 :
+
+```bash
+python -m scratch.train \
+  --config scratch/configs/level1_english_19m.json \
+  --out-dir scratch/checkpoints/level1
+```
+
+Générer du texte depuis notre checkpoint :
+
+```bash
+python -m scratch.generate \
+  --checkpoint scratch/checkpoints/level1/latest.pt \
+  --prompt "Once upon a time" \
+  --max-new-tokens 400
+```
+
+Cette première version apprend à compléter du texte anglais. Elle ne devient un assistant conversationnel qu'après une deuxième phase d'instruction training sur des dialogues propres.
+
+## Second Brain Web — application historique
+
+L'application web fournit :
+
+- un chat connecté à un modèle distant ;
+- une mémoire SQLite persistante et inspectable ;
+- l'historique des interactions ;
+- l'ajout manuel de souvenirs ;
+- la notation des réponses ;
+- un panneau administrateur pour comparer des instructions candidates ;
+- deux jetons optionnels pour séparer l'accès normal de l'administration.
+
+Après l'installation du projet principal :
+
+```bash
+python -m pip install -e ".[dev]"
 second-brain-web
 ```
 
 Puis ouvrir `http://localhost:8000`.
 
-## Déploiement public
-
-Le projet contient un `Dockerfile` et un blueprint `render.yaml`.
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Mwrtyy/demo-gpt)
-
-Lors du déploiement, renseigner `OPENAI_API_KEY`. Render génère automatiquement un jeton utilisateur et un jeton administrateur. La clé OpenAI reste côté serveur et n'est jamais envoyée au navigateur.
-
-Le disque persistant conserve la base SQLite et les rapports d'amélioration entre les redémarrages.
-
-## Ce que signifie « s'auto-améliorer »
-
-Un cycle d'amélioration exécute cinq étapes :
-
-1. évaluer la version active sur un jeu de tests stable ;
-2. analyser les échecs sans copier artificiellement les réponses attendues ;
-3. générer une nouvelle version candidate des instructions ;
-4. réévaluer cette candidate sur exactement le même benchmark ;
-5. promouvoir la candidate seulement si le score progresse et qu'aucun cas critique ne régresse.
-
-Par défaut, `improve` **ne remplace rien**. Il écrit une candidate et un rapport dans `state/`. L'option `--auto-promote` ne fonctionne que si la barrière de promotion est validée.
-
-## Architecture
+## Architecture scratch
 
 ```text
-src/second_brain/
-├── core.py          # boucle de réponse
-├── memory.py        # mémoire SQLite inspectable
-├── evaluation.py    # benchmark et scores déterministes
-├── improvement.py   # génération, comparaison et barrière de promotion
-├── prompt_store.py  # versions, candidates, archive et promotion
-├── llm.py           # adaptateur OpenAI Responses API
-├── cli.py           # commandes locales
-├── web.py           # API FastAPI et sécurité des accès
-└── static/          # interface web responsive
-
-prompts/active.json  # comportement actif versionné
-data/evals.jsonl     # benchmark stable
-state/               # candidates et rapports, ignorés par Git
-render.yaml          # déploiement public
-Dockerfile           # image de production
+scratch/
+├── tokenizer.py                  # encodage UTF-8 byte-level
+├── model.py                      # Transformer decoder-only
+├── data.py                       # corpus binaire memory-mapped
+├── download_gutenberg.py         # corpus anglais public-domain
+├── prepare_corpus.py             # nettoyage et split train/validation
+├── train.py                      # optimisation et checkpoints
+├── generate.py                   # inférence locale
+├── requirements.txt              # aucune dépendance d'API IA
+└── configs/
+    ├── smoke_cpu.json
+    └── level1_english_19m.json
 ```
 
-## Installation locale
+## Garde-fous et limites
 
-```bash
-git clone https://github.com/Mwrtyy/demo-gpt.git
-cd demo-gpt
-git switch agent/self-improving-core
-python -m venv .venv
-```
+- les datasets et checkpoints ne sont pas committés dans Git ;
+- les poids du modèle scratch commencent réellement au hasard ;
+- les sorties dépendent uniquement de notre corpus et de notre entraînement ;
+- le petit modèle n'aura pas les connaissances générales d'un grand LLM ;
+- les tests vérifient tokenizer, forward pass, loss, backward pass et génération ;
+- une CI dédiée installe PyTorch et teste le moteur scratch séparément ;
+- sur Windows avec une carte AMD, l'entraînement GPU PyTorch officiel peut ne pas être disponible directement ; CPU ou environnement Linux/ROCm compatible restent les voies réalistes.
 
-Activation sous PowerShell :
+## Licence des données
 
-```powershell
-.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-$env:OPENAI_API_KEY="sk-..."
-$env:SECOND_BRAIN_ACCESS_TOKEN="mot-de-passe-du-site"
-$env:SECOND_BRAIN_ADMIN_TOKEN="mot-de-passe-administrateur"
-second-brain-web
-```
-
-## Utilisation en terminal
-
-```bash
-second-brain status
-second-brain ask "Explique-moi les probabilités simplement"
-second-brain remember "Je préfère des explications directes en français"
-second-brain feedback 1 0.9 --note "Réponse claire"
-second-brain eval
-second-brain improve
-second-brain improve --auto-promote
-second-brain promote state/candidates/candidate-YYYYMMDDTHHMMSSZ.json
-```
-
-## Garde-fous
-
-- aucune clé API n'est enregistrée dans Git ;
-- la clé OpenAI est utilisée uniquement par le backend ;
-- l'accès au chat et l'accès administrateur peuvent avoir des jetons séparés ;
-- aucune candidate n'écrase directement le prompt actif ;
-- une amélioration moyenne ne peut pas masquer une régression critique ;
-- les tests GitHub Actions n'appellent pas l'API et ne dépensent aucun crédit ;
-- la mémoire est locale, explicite et supprimable ;
-- V1 ne donne pas à l'agent un shell autonome ni le droit de fusionner son propre code.
-
-## Limite honnête
-
-Cette version améliore le **système autour du modèle**, pas les poids internes de GPT. Une V2 pourra générer des patches de code dans un bac à sable, lancer les tests, ouvrir automatiquement une pull request et attendre une validation humaine. Une V3 pourra enrichir le benchmark à partir des retours négatifs, avec déduplication et validation pour empêcher l'agent de rendre ses propres tests artificiellement faciles.
+Le dépôt ne contient aucun livre. Le script Gutenberg télécharge uniquement les identifiants configurés et retire les en-têtes de distribution avant préparation. Avant un entraînement plus large, chaque source devra être vérifiée et documentée séparément.
