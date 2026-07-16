@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: second-brain-zero
+    runtime: docker
+    dockerfilePath: ./Dockerfile.zero
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SECOND_BRAIN_ACCESS_TOKEN
+        generateValue: true
+      - key: SECOND_BRAIN_ADMIN_TOKEN
+        generateValue: true
+      - key: SECOND_BRAIN_ZERO_CHECKPOINT
+        value: /var/data/zero/latest.pt
+      - key: SECOND_BRAIN_ZERO_DEVICE
+        value: cpu
+      - key: SECOND_BRAIN_ZERO_MAX_CHECKPOINT_MB
+        value: "512"
+      - key: SECOND_BRAIN_DB
+        value: /var/data/second_brain.db
+      - key: SECOND_BRAIN_STATE_DIR
+        value: /var/data/state
+    disk:
+      name: second-brain-zero-data
+      mountPath: /var/data
+      sizeGB: 1
