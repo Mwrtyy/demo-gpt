@@ -4,8 +4,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from scratch.model import ByteGPT, ModelConfig
-from scratch.tokenizer import ByteTokenizer
+from scratch.model import ByteGPT, ModelConfig  # noqa: E402
+from scratch.tokenizer import ByteTokenizer  # noqa: E402
 
 
 def test_byte_tokenizer_round_trip() -> None:
