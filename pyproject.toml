@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "second-brain"
-version = "0.4.0"
+version = "0.4.1"
 description = "A memory-backed AI app with autonomous local scratch-Transformer training."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,10 @@ dev = [
 [project.scripts]
 second-brain = "second_brain.cli:main"
 second-brain-web = "second_brain.web:run"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["sitecustomize"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
