@@ -62,7 +62,8 @@ input:focus, textarea:focus { border-color: rgba(139,124,255,.7); background: rg
 .secondary-button, .ghost-button { background: rgba(255,255,255,.055); padding: 10px 13px; }
 .accent-button { background: linear-gradient(135deg, var(--accent), #6959ef); border-color: transparent; padding: 11px 15px; font-weight: 750; box-shadow: 0 12px 30px rgba(139, 124, 255, .22); }
 .icon-button { width: 34px; height: 34px; background: transparent; font-size: 18px; }
-button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.22); }
+.nav-button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+button:hover, .nav-button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.22); }
 button:disabled { cursor: wait; opacity: .55; transform: none; }
 .full-width { width: 100%; }
 .microcopy { color: var(--muted); font-size: 11px; line-height: 1.5; margin-bottom: 0; }
@@ -121,5 +122,5 @@ dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(5px); }
   .message { max-width: 96%; }
   .explain-grid { grid-template-columns: 1fr; }
   .topbar-actions { width: 100%; }
-  .topbar-actions button { flex: 1; }
+  .topbar-actions button, .topbar-actions .nav-button { flex: 1; }
 }
