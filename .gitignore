@@ -12,3 +12,6 @@ second_brain.db
 dist/
 build/
 *.egg-info/
+scratch/data/raw/
+scratch/data/prepared/
+scratch/checkpoints/

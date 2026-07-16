@@ -1,0 +1,27 @@
+{
+  "model": {
+    "vocab_size": 256,
+    "block_size": 256,
+    "n_layer": 6,
+    "n_head": 8,
+    "n_embd": 512,
+    "dropout": 0.1,
+    "bias": false
+  },
+  "training": {
+    "seed": 1337,
+    "batch_size": 12,
+    "gradient_accumulation": 8,
+    "max_steps": 20000,
+    "learning_rate": 0.0006,
+    "minimum_learning_rate": 0.00006,
+    "warmup_steps": 500,
+    "weight_decay": 0.1,
+    "betas": [0.9, 0.95],
+    "gradient_clip": 1.0,
+    "eval_interval": 250,
+    "eval_batches": 20,
+    "checkpoint_interval": 250,
+    "compile": false
+  }
+}

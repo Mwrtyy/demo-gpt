@@ -1,0 +1,35 @@
+name: Scratch Model CI
+
+on:
+  push:
+    branches: [main, agent/second-brain-zero-english]
+    paths:
+      - "scratch/**"
+      - "tests/test_scratch_model.py"
+      - ".github/workflows/scratch-ci.yml"
+  pull_request:
+    paths:
+      - "scratch/**"
+      - "tests/test_scratch_model.py"
+      - ".github/workflows/scratch-ci.yml"
+
+jobs:
+  test-scratch-model:
+    runs-on: ubuntu-latest
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install test tools
+        run: python -m pip install -q numpy pytest ruff
+      - name: Install CPU PyTorch
+        run: python -m pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Lint scratch model
+        run: ruff check scratch tests/test_scratch_model.py
+      - name: Test scratch model
+        run: python -m pytest -q tests/test_scratch_model.py
