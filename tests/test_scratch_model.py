@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import torch
+import pytest
+
+torch = pytest.importorskip("torch")
 
 from scratch.model import ByteGPT, ModelConfig
 from scratch.tokenizer import ByteTokenizer
