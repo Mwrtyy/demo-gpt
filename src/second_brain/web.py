@@ -15,6 +15,7 @@ from .config import Settings
 from .core import SecondBrain
 from .improvement import run_improvement_cycle
 from .prompt_store import load_prompt
+from .training_orchestrator import TrainingOrchestrator, TrainingOrchestratorError
 from .zero_runtime import ZeroRuntime, ZeroUnavailableError
 
 
@@ -22,11 +23,12 @@ STATIC_DIR = Path(__file__).with_name("static")
 settings = Settings.from_env()
 brain = SecondBrain(settings)
 zero_runtime = ZeroRuntime()
+training_orchestrator = TrainingOrchestrator(activation_path=zero_runtime.checkpoint_path)
 
 app = FastAPI(
     title="Second Brain",
-    version="0.3.0",
-    description="A memory-backed AI and a locally hosted scratch Transformer lab.",
+    version="0.4.0",
+    description="A memory-backed AI and an autonomous scratch-Transformer laboratory.",
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -58,6 +60,19 @@ class ZeroGenerateRequest(BaseModel):
     temperature: float = Field(default=0.8, ge=0.05, le=3.0)
     top_k: int = Field(default=50, ge=1, le=256)
     seed: int = Field(default=1337, ge=0, le=2_147_483_647)
+
+
+class TrainingStartRequest(BaseModel):
+    generation: str = Field(default="level1", min_length=1, max_length=40)
+    max_steps: int | None = Field(default=None, ge=1, le=2_000_000)
+    auto_prepare: bool = True
+    resume_existing: bool = True
+    auto_activate_best: bool = True
+    auto_advance: bool = False
+    initialize_from_previous: bool = True
+    resume_after_restart: bool = True
+    target_validation: float | None = Field(default=None, gt=0, le=20)
+    max_parameters: int = Field(default=40_000_000, ge=10_000, le=2_000_000_000)
 
 
 def _optional_token(
@@ -92,6 +107,15 @@ def require_admin(
     )
 
 
+@app.on_event("startup")
+def recover_training_after_restart() -> None:
+    try:
+        training_orchestrator.recover()
+    except Exception:
+        # Recovery state is exposed in the dashboard; it must not prevent the web server starting.
+        pass
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -118,6 +142,7 @@ def status(_: None = Depends(require_access)) -> dict[str, object]:
         "improvement_enabled": bool(os.getenv("SECOND_BRAIN_ADMIN_TOKEN", "").strip()),
         "access_protected": bool(os.getenv("SECOND_BRAIN_ACCESS_TOKEN", "").strip()),
         "zero": zero_runtime.status(attempt_load=False),
+        "training": training_orchestrator.status(),
     }
 
 
@@ -271,6 +296,65 @@ async def zero_upload_checkpoint(
         await checkpoint.close()
         if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink(missing_ok=True)
+
+
+@app.get("/api/zero/training/catalog")
+def zero_training_catalog(_: None = Depends(require_access)) -> dict[str, object]:
+    try:
+        return training_orchestrator.catalog()
+    except TrainingOrchestratorError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/zero/training/status")
+def zero_training_status(_: None = Depends(require_access)) -> dict[str, object]:
+    return training_orchestrator.status()
+
+
+@app.post("/api/zero/training/start")
+def zero_training_start(
+    request: TrainingStartRequest,
+    _: None = Depends(require_admin),
+) -> dict[str, object]:
+    try:
+        return training_orchestrator.start(
+            generation=request.generation,
+            max_steps=request.max_steps,
+            auto_prepare=request.auto_prepare,
+            resume_existing=request.resume_existing,
+            auto_activate_best=request.auto_activate_best,
+            auto_advance=request.auto_advance,
+            initialize_from_previous=request.initialize_from_previous,
+            resume_after_restart=request.resume_after_restart,
+            target_validation=request.target_validation,
+            max_parameters=request.max_parameters,
+        )
+    except TrainingOrchestratorError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/zero/training/pause")
+def zero_training_pause(_: None = Depends(require_admin)) -> dict[str, object]:
+    try:
+        return training_orchestrator.pause()
+    except TrainingOrchestratorError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/zero/training/resume")
+def zero_training_resume(_: None = Depends(require_admin)) -> dict[str, object]:
+    try:
+        return training_orchestrator.resume()
+    except TrainingOrchestratorError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/zero/training/stop")
+def zero_training_stop(_: None = Depends(require_admin)) -> dict[str, object]:
+    try:
+        return training_orchestrator.stop()
+    except TrainingOrchestratorError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def run() -> None:

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -59,3 +62,85 @@ def test_zero_runtime_loads_checkpoint_and_generates(tmp_path: Path) -> None:
     assert status["parameters"] == model.parameter_count()
     assert result["new_tokens"] == 3
     assert result["device"] == "cpu"
+
+
+def test_controlled_training_writes_latest_best_activation_and_events(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    out_dir = tmp_path / "checkpoints"
+    data_dir.mkdir()
+    corpus = (b"Once upon a time, the small model learned English.\n" * 20)
+    (data_dir / "train.bin").write_bytes(corpus)
+    (data_dir / "validation.bin").write_bytes(corpus)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "model": {
+                    "vocab_size": 256,
+                    "block_size": 8,
+                    "n_layer": 1,
+                    "n_head": 2,
+                    "n_embd": 16,
+                    "dropout": 0.0,
+                    "bias": False,
+                },
+                "training": {
+                    "seed": 7,
+                    "batch_size": 1,
+                    "gradient_accumulation": 1,
+                    "max_steps": 2,
+                    "learning_rate": 0.001,
+                    "minimum_learning_rate": 0.0001,
+                    "warmup_steps": 1,
+                    "weight_decay": 0.0,
+                    "betas": [0.9, 0.95],
+                    "gradient_clip": 1.0,
+                    "eval_interval": 1,
+                    "eval_batches": 1,
+                    "checkpoint_interval": 1,
+                    "compile": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    events_path = tmp_path / "events.jsonl"
+    control_path = tmp_path / "control.json"
+    activation_path = tmp_path / "active" / "latest.pt"
+    control_path.write_text('{"command":"run"}', encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scratch.train",
+            "--config",
+            str(config_path),
+            "--data-dir",
+            str(data_dir),
+            "--out-dir",
+            str(out_dir),
+            "--max-steps",
+            "2",
+            "--events-file",
+            str(events_path),
+            "--control-file",
+            str(control_path),
+            "--best-checkpoint",
+            str(out_dir / "best.pt"),
+            "--activate-path",
+            str(activation_path),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert (out_dir / "latest.pt").exists()
+    assert (out_dir / "best.pt").exists()
+    assert activation_path.exists()
+    events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    event_types = {event["event"] for event in events}
+    assert {"started", "progress", "evaluation", "checkpoint", "completed"} <= event_types

@@ -4,6 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8000 \
     SECOND_BRAIN_ZERO_CHECKPOINT=/data/zero/latest.pt \
+    SECOND_BRAIN_TRAINING_DIR=/data/training \
     SECOND_BRAIN_ZERO_DEVICE=auto
 
 WORKDIR /app
@@ -15,10 +16,10 @@ COPY prompts ./prompts
 COPY data ./data
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir . \
+    && python -m pip install --no-cache-dir -e . \
     && python -m pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-RUN mkdir -p /app/state /app/runtime /data/zero
+RUN mkdir -p /app/state /app/runtime /data/zero /data/training
 
 EXPOSE 8000
 

@@ -3,6 +3,8 @@ const $ = (selector) => document.querySelector(selector);
 const zeroState = {
   accessToken: localStorage.getItem("secondBrainAccessToken") || "",
   adminToken: localStorage.getItem("secondBrainAdminToken") || "",
+  generations: [],
+  lastActivatedCheckpoint: null,
 };
 
 $("#zero-access-token").value = zeroState.accessToken;
@@ -67,6 +69,21 @@ function formatBytes(value) {
   return `${amount.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function formatDuration(seconds) {
+  if (seconds == null || !Number.isFinite(Number(seconds))) return "—";
+  let remaining = Math.max(0, Math.round(Number(seconds)));
+  const days = Math.floor(remaining / 86400);
+  remaining %= 86400;
+  const hours = Math.floor(remaining / 3600);
+  remaining %= 3600;
+  const minutes = Math.floor(remaining / 60);
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours || days) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
 function renderStatus(data) {
   $("#zero-ready").textContent = data.ready ? "yes" : "no";
   $("#zero-ready").style.color = data.ready ? "var(--accent-2)" : "#ff9aa8";
@@ -100,6 +117,109 @@ async function loadZeroStatus(showError = true) {
   }
 }
 
+function selectedGeneration() {
+  return zeroState.generations.find((item) => item.id === $("#training-generation").value);
+}
+
+function applyGenerationDefaults() {
+  const generation = selectedGeneration();
+  if (!generation) return;
+  $("#training-max-steps").value = generation.default_max_steps;
+  $("#training-target-validation").value = generation.target_validation;
+}
+
+async function loadTrainingCatalog() {
+  try {
+    const data = await zeroApi("/api/zero/training/catalog");
+    zeroState.generations = data.generations || [];
+    const select = $("#training-generation");
+    const previous = select.value || "level1";
+    select.innerHTML = zeroState.generations.map((generation) => (
+      `<option value="${generation.id}">${generation.name}</option>`
+    )).join("");
+    select.value = zeroState.generations.some((item) => item.id === previous)
+      ? previous
+      : (zeroState.generations[0]?.id || "");
+    applyGenerationDefaults();
+  } catch (error) {
+    $("#training-message").textContent = error.message;
+  }
+}
+
+function renderTrainingStatus(data) {
+  const status = data.status || "idle";
+  const active = Boolean(data.active);
+  const percent = Number(data.progress_percent || 0);
+  $("#training-status-badge").textContent = status.replaceAll("_", " ");
+  $("#training-status-badge").classList.toggle("training-failed", status === "failed");
+  $("#training-stage").textContent = (data.stage || status).replaceAll("_", " ");
+  $("#training-progress-text").textContent = `${percent.toFixed(percent < 1 ? 2 : 1)}%`;
+  $("#training-progress-bar").style.width = `${Math.min(100, Math.max(0, percent))}%`;
+
+  $("#training-generation-value").textContent = data.generation_name || data.generation || "—";
+  $("#training-step").textContent = data.step == null
+    ? "—"
+    : `${formatNumber(data.step)} / ${formatNumber(data.max_steps)}`;
+  $("#training-loss").textContent = data.loss == null ? "—" : Number(data.loss).toFixed(4);
+  $("#training-validation").textContent = data.validation_loss == null
+    ? "—"
+    : Number(data.validation_loss).toFixed(4);
+  $("#training-best").textContent = data.best_validation == null
+    ? "—"
+    : Number(data.best_validation).toFixed(4);
+  $("#training-speed").textContent = data.sequences_per_second == null
+    ? "—"
+    : `${Number(data.sequences_per_second).toFixed(2)} seq/s`;
+  $("#training-eta").textContent = formatDuration(data.eta_seconds);
+  $("#training-process").textContent = data.pid
+    ? `PID ${data.pid}${data.process_alive ? " · alive" : ""}`
+    : "—";
+  $("#training-log").textContent = data.log_tail || "Waiting for training output…";
+  $("#training-log").scrollTop = $("#training-log").scrollHeight;
+  $("#training-message").textContent = data.error || data.growth_message || "";
+
+  $("#training-start").disabled = active;
+  $("#training-pause").disabled = !["running", "resume_requested"].includes(status);
+  $("#training-resume").disabled = !["paused", "pause_requested"].includes(status);
+  $("#training-stop").disabled = !active;
+
+  if (data.activated_checkpoint && data.activated_checkpoint !== zeroState.lastActivatedCheckpoint) {
+    zeroState.lastActivatedCheckpoint = data.activated_checkpoint;
+    loadZeroStatus(false);
+  }
+}
+
+async function loadTrainingStatus(showError = false) {
+  try {
+    const data = await zeroApi("/api/zero/training/status");
+    renderTrainingStatus(data);
+    return data;
+  } catch (error) {
+    $("#training-status-badge").textContent = "unavailable";
+    $("#training-message").textContent = error.message;
+    if (showError) zeroToast(error.message, true);
+    return null;
+  }
+}
+
+async function trainingControl(action, button, busyLabel) {
+  if (!zeroState.adminToken) return zeroToast("An administrator token is required.", true);
+  setBusy(button, true, busyLabel);
+  try {
+    const data = await zeroApi(
+      `/api/zero/training/${action}`,
+      { method: "POST", body: "{}" },
+      true,
+    );
+    renderTrainingStatus(data);
+    zeroToast(`Training command accepted: ${action}.`);
+  } catch (error) {
+    zeroToast(error.message, true);
+  } finally {
+    setBusy(button, false);
+  }
+}
+
 $("#zero-save-tokens").addEventListener("click", () => {
   zeroState.accessToken = $("#zero-access-token").value.trim();
   zeroState.adminToken = $("#zero-admin-token").value.trim();
@@ -107,9 +227,58 @@ $("#zero-save-tokens").addEventListener("click", () => {
   localStorage.setItem("secondBrainAdminToken", zeroState.adminToken);
   zeroToast("Tokens saved in this browser.");
   loadZeroStatus();
+  loadTrainingStatus();
 });
 
-$("#zero-refresh").addEventListener("click", () => loadZeroStatus());
+$("#zero-refresh").addEventListener("click", () => {
+  loadZeroStatus();
+  loadTrainingStatus();
+});
+
+$("#training-generation").addEventListener("change", applyGenerationDefaults);
+
+$("#training-start").addEventListener("click", async () => {
+  const button = $("#training-start");
+  if (!zeroState.adminToken) return zeroToast("An administrator token is required.", true);
+  setBusy(button, true, "Starting…");
+  try {
+    const data = await zeroApi(
+      "/api/zero/training/start",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          generation: $("#training-generation").value,
+          max_steps: Number($("#training-max-steps").value),
+          target_validation: Number($("#training-target-validation").value),
+          max_parameters: Number($("#training-max-parameters").value),
+          auto_prepare: $("#training-auto-prepare").checked,
+          resume_existing: $("#training-resume-existing").checked,
+          auto_activate_best: $("#training-auto-activate").checked,
+          auto_advance: $("#training-auto-advance").checked,
+          initialize_from_previous: $("#training-init-previous").checked,
+          resume_after_restart: $("#training-resume-restart").checked,
+        }),
+      },
+      true,
+    );
+    renderTrainingStatus(data);
+    zeroToast("Autonomous training started.");
+  } catch (error) {
+    zeroToast(error.message, true);
+  } finally {
+    setBusy(button, false);
+  }
+});
+
+$("#training-pause").addEventListener("click", () => (
+  trainingControl("pause", $("#training-pause"), "Pause requested…")
+));
+$("#training-resume").addEventListener("click", () => (
+  trainingControl("resume", $("#training-resume"), "Resuming…")
+));
+$("#training-stop").addEventListener("click", () => (
+  trainingControl("stop", $("#training-stop"), "Stop requested…")
+));
 
 $("#zero-upload").addEventListener("click", async () => {
   const button = $("#zero-upload");
@@ -179,4 +348,6 @@ $("#zero-copy").addEventListener("click", async () => {
   }
 });
 
-loadZeroStatus(false);
+Promise.all([loadTrainingCatalog(), loadTrainingStatus(false), loadZeroStatus(false)]);
+window.setInterval(() => loadTrainingStatus(false), 2500);
+window.setInterval(() => loadZeroStatus(false), 10000);

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "second-brain"
-version = "0.3.0"
-description = "A memory-backed AI app plus a local scratch Transformer inference lab."
+version = "0.4.0"
+description = "A memory-backed AI app with autonomous local scratch-Transformer training."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
