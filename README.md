@@ -62,6 +62,51 @@ python -m scratch.generate \
 
 Cette première version apprend à compléter du texte anglais. Elle ne devient un assistant conversationnel qu'après une deuxième phase d'instruction training sur des dialogues propres.
 
+## Tester Second Brain Zero directement dans le site
+
+Le site contient maintenant un laboratoire dédié à l'adresse :
+
+```text
+http://localhost:8000/zero
+```
+
+Installation locale complète :
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pip install -r scratch/requirements.txt
+second-brain-web
+```
+
+Deux méthodes permettent d'activer les poids :
+
+1. copier un checkpoint entraîné vers `runtime/zero/latest.pt` ;
+2. ouvrir `/zero`, saisir le jeton administrateur puis uploader le fichier `latest.pt`.
+
+Le laboratoire affiche :
+
+- disponibilité de PyTorch ;
+- présence et taille du checkpoint ;
+- nombre de paramètres ;
+- étape d'entraînement et meilleure validation enregistrée ;
+- CPU/GPU utilisé ;
+- température, top-k, seed et nombre de nouveaux tokens ;
+- vitesse réelle de génération.
+
+Le backend charge les poids localement et appelle directement `ByteGPT.generate`. Aucune requête n'est envoyée à une API de modèle externe.
+
+Pour une image serveur contenant PyTorch CPU :
+
+```bash
+docker build -f Dockerfile.zero -t second-brain-zero .
+docker run --rm -p 8000:8000 \
+  -e SECOND_BRAIN_ADMIN_TOKEN=change-me \
+  -v second-brain-zero-data:/data \
+  second-brain-zero
+```
+
+Le fichier `render-zero.yaml` fournit aussi une configuration de serveur avec disque persistant. Après le déploiement, uploader le checkpoint depuis `/zero`.
+
 ## Second Brain Web — application historique
 
 L'application web fournit :
@@ -100,13 +145,26 @@ scratch/
     └── level1_english_19m.json
 ```
 
+```text
+src/second_brain/
+├── web.py                        # routes normales et routes /api/zero
+├── zero_runtime.py               # chargement et inférence du checkpoint
+└── static/
+    ├── zero.html
+    ├── zero.css
+    └── zero.js
+```
+
 ## Garde-fous et limites
 
 - les datasets et checkpoints ne sont pas committés dans Git ;
 - les poids du modèle scratch commencent réellement au hasard ;
 - les sorties dépendent uniquement de notre corpus et de notre entraînement ;
 - le petit modèle n'aura pas les connaissances générales d'un grand LLM ;
-- les tests vérifient tokenizer, forward pass, loss, backward pass et génération ;
+- l'upload d'un checkpoint exige le jeton administrateur ;
+- le fichier est chargé et validé avant de remplacer le checkpoint actif ;
+- le chargeur PyTorch utilise le mode restreint `weights_only=True` ;
+- les tests vérifient tokenizer, forward pass, loss, backward pass, checkpoint et génération ;
 - une CI dédiée installe PyTorch et teste le moteur scratch séparément ;
 - sur Windows avec une carte AMD, l'entraînement GPU PyTorch officiel peut ne pas être disponible directement ; CPU ou environnement Linux/ROCm compatible restent les voies réalistes.
 
