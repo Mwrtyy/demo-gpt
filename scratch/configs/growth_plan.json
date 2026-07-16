@@ -1,0 +1,25 @@
+{
+  "generations": [
+    {
+      "id": "smoke",
+      "name": "Smoke — 67K parameters",
+      "config": "scratch/configs/smoke_cpu.json",
+      "out_dir": "scratch/checkpoints/smoke",
+      "target_validation": 1.8
+    },
+    {
+      "id": "level1",
+      "name": "Level 1 — 19.1M parameters",
+      "config": "scratch/configs/level1_english_19m.json",
+      "out_dir": "scratch/checkpoints/level1",
+      "target_validation": 1.9
+    },
+    {
+      "id": "level2",
+      "name": "Level 2 — 38.0M parameters",
+      "config": "scratch/configs/level2_english_38m.json",
+      "out_dir": "scratch/checkpoints/level2",
+      "target_validation": 1.75
+    }
+  ]
+}
